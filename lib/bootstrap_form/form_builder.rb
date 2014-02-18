@@ -1,6 +1,6 @@
 module BootstrapForm
   class FormBuilder < ActionView::Helpers::FormBuilder
-    attr_reader :style, :left_class, :right_class, :has_error
+    attr_reader :layout, :label_container, :input_container, :has_error
 
     BOOTSTRAP_OPTIONS = [:label, :hide_label, :help, :prepend, :append]
     FORM_HELPERS = %w{text_field password_field text_area file_field
@@ -10,10 +10,22 @@ module BootstrapForm
     delegate :content_tag, to: :@template
     delegate :capture, to: :@template
 
+    def default_layout
+      :vertical
+    end
+
+    def default_label_container
+      "col-sm-2"
+    end
+
+    def default_input_container
+      "col-sm-10"
+    end
+
     def initialize(object_name, object, template, options, proc=nil)
-      @style = options[:style]
-      @left_class = options[:left] || default_left_class
-      @right_class = options[:right] || default_right_class
+      @layout = options[:layout] || default_layout
+      @label_container = options[:label_container] || default_label_container
+      @input_container = options[:input_container] || default_input_container
       super
     end
 
@@ -25,8 +37,9 @@ module BootstrapForm
         label = options.delete(:label)
         label_class = hide_class if options.delete(:hide_label)
         help = options.delete(:help)
+        input_container = options.delete(:input_container)
 
-        form_group(name, label: { text: label, class: label_class }, help: help) do
+        form_group(name, label: { text: label, class: label_class }, help: help, input_container: input_container, method_name: method_name.dasherize) do
           options[:class] = "form-control #{options[:class]}".rstrip
           args << options.except(:prepend, :append)
           input = super(name, *args)
@@ -62,12 +75,13 @@ module BootstrapForm
     end
 
     def form_group(name = nil, options = {}, &block)
-      options[:class] = 'form-group'
+      method_name = options.delete(:method_name)
+      options[:class] = "form-group #{method_name}".rstrip
       options[:class] << ' has-error' if has_error?(name)
 
       html = capture(&block)
       html << generate_help(name, options[:help])
-      html = content_tag(:div, html, class: right_class) if horizontal?
+      html = content_tag(:div, html, class: (options[:input_container] || input_container)) if horizontal?
 
       content_tag(:div, options.except(:label, :help)) do
         "#{generate_label(name, options[:label])}#{html}".html_safe
@@ -95,9 +109,9 @@ module BootstrapForm
 
     def fields_for(record_name, record_object = nil, fields_options = {}, &block)
       fields_options, record_object = record_object, nil if record_object.is_a?(Hash) && record_object.extractable_options?
-      fields_options[:style] ||= options[:style]
-      fields_options[:left] = (fields_options.include?(:left)) ? fields_options[:left] + " control-label" : options[:left]
-      fields_options[:right] ||= options[:right]
+      fields_options[:layout] ||= options[:layout]
+      fields_options[:label_container] = (fields_options.include?(:label_container)) ? fields_options[:label_container] + " control-label" : options[:label_container]
+      fields_options[:input_container] ||= options[:input_container]
       super(record_name, record_object, fields_options, &block)
     end
 
@@ -140,15 +154,7 @@ module BootstrapForm
     end
 
     def horizontal?
-      style == :horizontal
-    end
-
-    def default_left_class
-      "col-sm-2"
-    end
-
-    def default_right_class
-      "col-sm-10"
+      layout == :horizontal
     end
 
     def default_label_class
@@ -177,11 +183,11 @@ module BootstrapForm
     def generate_label(name, options)
       if options
         options[:class] = "#{options[:class]} #{default_label_class}".lstrip
-        options[:class] << " #{left_class}" if horizontal?
+        options[:class] << " #{label_container}" if horizontal?
         label(name, options[:text], options.except(:text))
       elsif horizontal?
         # no label. create an empty one to keep proper form alignment.
-        content_tag(:label, "", class: "#{default_label_class} #{left_class}")
+        content_tag(:label, "", class: "#{default_label_class} #{label_container}")
       end
     end
 
